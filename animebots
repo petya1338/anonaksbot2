@@ -126,17 +126,21 @@ elif update.message.document:
         caption = make_admin_caption(user, user_message_text, media_type)
         try:
             if media_file_id:
-                if media_type == "Фото":
-                    await context.bot.send_photo(chat_id=admin_id, photo=media_file_id, caption=caption)
-                elif media_type == "Видео":
-                    await context.bot.send_video(chat_id=admin_id, video=media_file_id, caption=caption)
-                elif media_type == "Аудио":
-                    await context.bot.send_audio(chat_id=admin_id, audio=media_file_id, caption=caption)
-                elif media_type == "Голосовое сообщение":
-                    await context.bot.send_voice(chat_id=admin_id, voice=media_file_id, caption=caption)
-                elif media_type == "Документ":
-                    await context.bot.send_document(chat_id=admin_id, document=media_file_id, caption=caption)
-            else:
+                if update.message.photo:
+    media_type = "Фото"
+    media_file_id = update.message.photo[-1].file_id
+elif update.message.video:
+    media_type = "Видео"
+    media_file_id = update.message.video.file_id
+elif update.message.audio:
+    media_type = "Аудио"
+    media_file_id = update.message.audio.file_id
+elif update.message.voice:
+    media_type = "Голосовое сообщение"
+    media_file_id = update.message.voice.file_id
+elif update.message.document:
+    media_type = "Документ"
+    media_file_id = update.message.document.file_id
                 await context.bot.send_message(chat_id=admin_id, text=caption)
         except Exception as e:
             print(f"Ошибка отправки Full Admin: {e}")
@@ -146,17 +150,21 @@ elif update.message.document:
         caption = make_default_caption(user_message_text, media_type)
         try:
             if media_file_id:
-                if media_type == "Фото":
-                    await context.bot.send_photo(chat_id=admin_id, photo=media_file_id, caption=caption)
-                elif media_type == "Видео":
-                    await context.bot.send_video(chat_id=admin_id, video=media_file_id, caption=caption)
-                elif media_type == "Аудио":
-                    await context.bot.send_audio(chat_id=admin_id, audio=media_file_id, caption=caption)
-                elif media_type == "Голосовое сообщение":
-                    await context.bot.send_voice(chat_id=admin_id, voice=media_file_id, caption=caption)
-                elif media_type == "Документ":
-                    await context.bot.send_document(chat_id=admin_id, document=media_file_id, caption=caption)
-            else:
+               if update.message.photo:
+    media_type = "Фото"
+    media_file_id = update.message.photo[-1].file_id
+elif update.message.video:
+    media_type = "Видео"
+    media_file_id = update.message.video.file_id
+elif update.message.audio:
+    media_type = "Аудио"
+    media_file_id = update.message.audio.file_id
+elif update.message.voice:
+    media_type = "Голосовое сообщение"
+    media_file_id = update.message.voice.file_id
+elif update.message.document:
+    media_type = "Документ"
+    media_file_id = update.message.document.file_id
                 await context.bot.send_message(chat_id=admin_id, text=caption)
         except Exception as e:
             print(f"Ошибка отправки Default Admin: {e}")
