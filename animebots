@@ -135,7 +135,7 @@ async def ban(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         uid = int(context.args[0])
         BANNED_USERS.add(uid)
-        await update.message.
+        await update.message
 reply_text(f"🚫 Пользователь {uid} забанен.")
     except:
         await update.message.reply_text("❌ Неверный ID")
