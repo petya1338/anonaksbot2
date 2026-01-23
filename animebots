@@ -1,5 +1,6 @@
 import os
-from telegram import Update, ReplyKeyboardMarkup
+from datetime import datetime, timedelta
+from telegram import Update, ReplyKeyboardMarkup, InputMediaPhoto, InputMediaVideo
 from telegram.ext import (
     ApplicationBuilder,
     CommandHandler,
@@ -8,130 +9,109 @@ from telegram.ext import (
     filters
 )
 
+# =========================
+# Настройки
+# =========================
 BOT_TOKEN = os.environ.get("BOT_TOKEN")
+FULL_ADMINS = list(map(int, os.environ.get("FULL_ADMINS").split(",")))   # полные админы
+DEFAULT_ADMINS = list(map(int, os.environ.get("DEFAULT_ADMINS").split(",")))  # пересылка
+MESSAGE_LIMIT = 5
 
-# несколько админов через запятую: 123,456,789
-ADMIN_IDS = list(map(int, os.environ.get("ADMIN_IDS").split(",")))
-
-# временное хранилище
 LAST_MESSAGE = {}
 BANNED_USERS = set()
+USER_COUNTER = {}  # {user_id: {"count": int, "date": datetime}}
 
-# ---------- КНОПКИ ----------
-main_keyboard = ReplyKeyboardMarkup(
-    [["✉️ Написать сообщение"], ["ℹ️ О боте"]],
-    resize_keyboard=True
-)
+# =========================
+# Кнопки
+# =========================
+main_keyboard = ReplyKeyboardMarkup([["✉️ Написать сообщение"], ["ℹ️ О боте"]], resize_keyboard=True)
 
-admin_keyboard = ReplyKeyboardMarkup(
-    [["📩 Последнее сообщение"]],
-    resize_keyboard=True
-)
-
-# ---------- /start ----------
+# =========================
+# /start
+# =========================
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id in BANNED_USERS:
+    user_id = update.effective_user.id
+    if user_id in BANNED_USERS:
         await update.message.reply_text("🚫 Вы заблокированы.")
         return
+    await update.message.reply_text("👋 Напиши сообщение админу.", reply_markup=main_keyboard)
 
-    await update.message.reply_text(
-        "👋 Напиши сообщение админу.",
-        reply_markup=main_keyboard
-    )
+# =========================
+# Проверка лимита
+# =========================
+def check_limit(user_id):
+    now = datetime.now()
+    data = USER_COUNTER.get(user_id)
+    if not data or data["date"].date() != now.date():
+        USER_COUNTER[user_id] = {"count": 0, "date": now}
+    return USER_COUNTER[user_id]["count"] < MESSAGE_LIMIT
 
-# ---------- О БОТЕ ----------
-async def about(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(
-        "🤖 Анонимный бот обратной связи.\n"
-        "Сообщения видят только администраторы."
-    )
+def increment_count(user_id):
+    USER_COUNTER[user_id]["count"] += 1
 
-# ---------- СООБЩЕНИЯ ----------
+# =========================
+# Проверка админа
+# =========================
+def is_full_admin(user_id): return user_id in FULL_ADMINS
+def is_default_admin(user_id): return user_id in DEFAULT_ADMINS
+
+# =========================
+# Обработка сообщений любых типов
+# =========================
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
-    text = update.message.text
+    user_id = user.id
 
-    # Лог для проверки в Railway
-    print(f"[LOG] Сообщение от {user.id} ({user.first_name}): {text}")
-
-    # Если сообщение команда (/start, /admin) — пропускаем
-    if text.startswith("/"):
-        return
-
-    # Если пользователь забанен
-    if user.id in BANNED_USERS:
+    # Проверка бана
+    if user_id in BANNED_USERS:
         await update.message.reply_text("🚫 Вы заблокированы.")
         return
 
-    # Кнопка "Написать сообщение"
-    if "Написать сообщение" in text:
-        await update.message.reply_text("✍️ Напишите сообщение одним текстом.")
+    # Лимит
+    if not check_limit(user_id):
+        await update.message.reply_text(f"⚠️ Лимит {MESSAGE_LIMIT} сообщений в день достигнут.")
         return
+    increment_count(user_id)
 
-    # Кнопка "О боте"
-    if "О боте" in text:
-        await about(update, context)
-        return
+    # Сохраняем сообщение
+    LAST_MESSAGE["user"] = user
+    LAST_MESSAGE["message"] = update.message
 
-    # Сохраняем сообщение и отправляем админу
-    global LAST_MESSAGE
-    LAST_MESSAGE = {
-        "name": user.first_name,
-        "username": f"@{user.username}" if user.username else "нет",
-        "id": user.id,
-        "text": text
-    }
-
+    # Отправка админу
     admin_text = (
-        "📩 Новое сообщение\n\n"
-        f"👤 Имя: {LAST_MESSAGE['name']}\n"
-        f"🔗 Username: {LAST_MESSAGE['username']}\n"
-        f"🆔 ID: {LAST_MESSAGE['id']}\n\n"
-        f"💬 Текст:\n{LAST_MESSAGE['text']}"
+        "🎉🎉🎉 НОВОЕ АНОНИМНОЕ СООБЩЕНИЕ!\n"
+        "📬 Кто-то только что написал боту\n"
+        "🔥 Смотри ниже ⬇️⬇️⬇️"
     )
 
-    for admin_id in ADMIN_IDS:
+    for admin_id in FULL_ADMINS + DEFAULT_ADMINS:
+        # Отправляем уведомление
         await context.bot.send_message(chat_id=admin_id, text=admin_text)
 
-    # Ответ пользователю
+        # Пересылаем содержимое
+        if update.message.text:
+            await context.bot.send_message(chat_id=admin_id, text=update.message.text)
+        elif update.message.photo:
+            await context.bot.send_photo(chat_id=admin_id, photo=update.message.photo[-1].file_id)
+        elif update.message.video:
+            await context.bot.send_video(chat_id=admin_id, video=update.message.video.file_id)
+        elif update.message.audio:
+            await context.bot.send_audio(chat_id=admin_id, audio=update.message.audio.file_id)
+        elif update.message.voice:await context.bot.send_voice(chat_id=admin_id, voice=update.message.voice.file_id)
+        elif update.message.document:
+            await context.bot.send_document(chat_id=admin_id, document=update.message.document.file_id)
+
     await update.message.reply_text("✅ Сообщение отправлено.", reply_markup=main_keyboard)
-# ---------- АДМИН ----------
-def is_admin(user_id: int) -> bool:
-    return user_id in ADMIN_IDS
 
-async def admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not is_admin(update.effective_user.id):
-        return
-
-    await update.message.reply_text("👑 Админ-панель", reply_markup=admin_keyboard)
-
-async def last_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not is_admin(update.effective_user.id):
-        return
-
-    if not LAST_MESSAGE:
-        await update.message.reply_text("❌ Сообщений нет.")
-        return
-
-    text = (
-        "📨 Последнее сообщение\n\n"
-        f"👤 Имя: {LAST_MESSAGE['name']}\n"
-        f"🔗 Username: {LAST_MESSAGE['username']}\n"
-        f"🆔 ID: {LAST_MESSAGE['id']}\n\n"
-        f"💬 Текст:\n{LAST_MESSAGE['text']}"
-    )
-
-    await update.message.reply_text(text)
-
-# ---------- БАН ----------
+# =========================
+# Админ команды скрытые
+# =========================
 async def ban(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not is_admin(update.effective_user.id):
+    if not is_full_admin(update.effective_user.id):
         return
-
     if not context.args:
         await update.message.reply_text("Использование: /ban <user_id>")
         return
-
     try:
         uid = int(context.args[0])
         BANNED_USERS.add(uid)
@@ -140,13 +120,11 @@ async def ban(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("❌ Неверный ID")
 
 async def unban(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not is_admin(update.effective_user.id):
+    if not is_full_admin(update.effective_user.id):
         return
-
     if not context.args:
         await update.message.reply_text("Использование: /unban <user_id>")
         return
-
     try:
         uid = int(context.args[0])
         BANNED_USERS.discard(uid)
@@ -154,16 +132,19 @@ async def unban(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except:
         await update.message.reply_text("❌ Неверный ID")
 
-# ---------- ЗАПУСК ----------
+# =========================
+# Запуск бота
+# =========================
 def main():
-    app = ApplicationBuilder().token("8542679681:AAE8iNRt23pFoSYqOESvhD44Vq4jnnpQkYA").build()
+    app = ApplicationBuilder().token(BOT_TOKEN).build()
 
+    # Команды
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("admin", admin))
     app.add_handler(CommandHandler("ban", ban))
     app.add_handler(CommandHandler("unban", unban))
-    app.add_handler(MessageHandler(filters.Regex("^📩 Последнее сообщение$"), last_message))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+
+    # Сообщения любых типов
+    app.add_handler(MessageHandler(filters.ALL & ~filters.COMMAND, handle_message))
 
     print("🤖 Бот запущен")
     app.run_polling()
