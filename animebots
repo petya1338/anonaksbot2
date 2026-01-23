@@ -122,24 +122,23 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # --- Full Admin ---
     for admin_id in FULL_ADMINS:
-
-caption = make_admin_caption(user, user_message_text, media_type)
-        try:
-            if media_file_id:
-                if media_type == "Фото":
-                    await context.bot.send_photo(chat_id=admin_id, photo=media_file_id, caption=caption)
-                elif media_type == "Видео":
-                    await context.bot.send_video(chat_id=admin_id, video=media_file_id, caption=caption)
-                elif media_type == "Аудио":
-                    await context.bot.send_audio(chat_id=admin_id, audio=media_file_id, caption=caption)
-                elif media_type == "Голосовое сообщение":
-                    await context.bot.send_voice(chat_id=admin_id, voice=media_file_id, caption=caption)
-                elif media_type == "Документ":
-                    await context.bot.send_document(chat_id=admin_id, document=media_file_id, caption=caption)
-            else:
-                await context.bot.send_message(chat_id=admin_id, text=caption)
-        except Exception as e:
-            print(f"Ошибка отправки Full Admin: {e}")
+    caption = make_admin_caption(user, user_message_text, media_type)
+    try:
+        if media_file_id:
+            if media_type == "Фото":
+                await context.bot.send_photo(chat_id=admin_id, photo=media_file_id, caption=caption)
+            elif media_type == "Видео":
+                await context.bot.send_video(chat_id=admin_id, video=media_file_id, caption=caption)
+            elif media_type == "Аудио":
+                await context.bot.send_audio(chat_id=admin_id, audio=media_file_id, caption=caption)
+            elif media_type == "Голосовое сообщение":
+                await context.bot.send_voice(chat_id=admin_id, voice=media_file_id, caption=caption)
+            elif media_type == "Документ":
+                await context.bot.send_document(chat_id=admin_id, document=media_file_id, caption=caption)
+        else:
+            await context.bot.send_message(chat_id=admin_id, text=caption)
+    except Exception as e:
+        print(f"Ошибка отправки Full Admin: {e}")
 
     # --- Default Admin ---
     for admin_id in DEFAULT_ADMINS:
