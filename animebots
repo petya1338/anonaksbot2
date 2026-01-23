@@ -24,7 +24,7 @@ USER_COUNTER = {}  # {user_id: {"count": int, "date": datetime}}
 # =========================
 main_keyboard = ReplyKeyboardMarkup([["
 resize_keyboard=True)
-✉ Написать сообщение"], ["
+ ["✉ Написать сообщение"],
 # =========================
 # /start
 # =========================
