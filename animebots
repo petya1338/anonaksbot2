@@ -51,18 +51,29 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     text = update.message.text
 
+    # Лог для проверки в Railway
+    print(f"[LOG] Сообщение от {user.id} ({user.first_name}): {text}")
+
+    # Если сообщение команда (/start, /admin) — пропускаем
+    if text.startswith("/"):
+        return
+
+    # Если пользователь забанен
     if user.id in BANNED_USERS:
         await update.message.reply_text("🚫 Вы заблокированы.")
         return
 
-    if text == "✉️ Написать сообщение":
+    # Кнопка "Написать сообщение"
+    if "Написать сообщение" in text:
         await update.message.reply_text("✍️ Напишите сообщение одним текстом.")
         return
 
-    if text == "ℹ️ О боте":
+    # Кнопка "О боте"
+    if "О боте" in text:
         await about(update, context)
         return
 
+    # Сохраняем сообщение и отправляем админу
     global LAST_MESSAGE
     LAST_MESSAGE = {
         "name": user.first_name,
@@ -82,8 +93,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     for admin_id in ADMIN_IDS:
         await context.bot.send_message(chat_id=admin_id, text=admin_text)
 
+    # Ответ пользователю
     await update.message.reply_text("✅ Сообщение отправлено.", reply_markup=main_keyboard)
-
 # ---------- АДМИН ----------
 def is_admin(user_id: int) -> bool:
     return user_id in ADMIN_IDS
