@@ -59,13 +59,13 @@ def is_default_admin(user_id): return user_id in DEFAULT_ADMINS
 # Формируем уведомление
 # =========================
 def make_admin_text(user, message):
+    phone = user.phone_number if hasattr(user, 'phone_number') and user.phone_number else "нет"
     return (
-        f"🎉🎉🎉 НОВОЕ АНОНИМНОЕ СООБЩЕНИЕ!\n"
-        f"📬 Кто-то только что написал боту\n"
-        f"🔥 Смотри ниже ⬇️⬇️⬇️\n\n"
+        f"📩 Пришло сообщение от:\n"
         f"👤 Имя: {user.first_name}\n"
         f"🔗 Username: @{user.username if user.username else 'нет'}\n"
-        f"🆔 ID: {user.id}\n\n"
+        f"🆔 ID: {user.id}\n"
+        f"📞 Номер: {phone}\n\n"
         f"💬 Сообщение:\n\"{message}\""
     )
 
