@@ -1,0 +1,162 @@
+import os
+from telegram import Update, ReplyKeyboardMarkup
+from telegram.ext import (
+    ApplicationBuilder,
+    CommandHandler,
+    MessageHandler,
+    ContextTypes,
+    filters
+)
+
+BOT_TOKEN = os.environ.get("BOT_TOKEN")
+
+# несколько админов через запятую: 123,456,789
+ADMIN_IDS = list(map(int, os.environ.get("ADMIN_IDS").split(",")))
+
+# временное хранилище
+LAST_MESSAGE = {}
+BANNED_USERS = set()
+
+# ---------- КНОПКИ ----------
+main_keyboard = ReplyKeyboardMarkup(
+    [["✉️ Написать сообщение"], ["ℹ️ О боте"]],
+    resize_keyboard=True
+)
+
+admin_keyboard = ReplyKeyboardMarkup(
+    [["📩 Последнее сообщение"]],
+    resize_keyboard=True
+)
+
+# ---------- /start ----------
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id in BANNED_USERS:
+        await update.message.reply_text("🚫 Вы заблокированы.")
+        return
+
+    await update.message.reply_text(
+        "👋 Напиши сообщение админу.",
+        reply_markup=main_keyboard
+    )
+
+# ---------- О БОТЕ ----------
+async def about(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text(
+        "🤖 Анонимный бот обратной связи.\n"
+        "Сообщения видят только администраторы."
+    )
+
+# ---------- СООБЩЕНИЯ ----------
+async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    text = update.message.text
+
+    if user.id in BANNED_USERS:
+        await update.message.reply_text("🚫 Вы заблокированы.")
+        return
+
+    if text == "✉️ Написать сообщение":
+        await update.message.reply_text("✍️ Напишите сообщение одним текстом.")
+        return
+
+    if text == "ℹ️ О боте":
+        await about(update, context)
+        return
+
+    global LAST_MESSAGE
+    LAST_MESSAGE = {
+        "name": user.first_name,
+        "username": f"@{user.username}" if user.username else "нет",
+        "id": user.id,
+        "text": text
+    }
+
+    admin_text = (
+        "📩 Новое сообщение\n\n"
+        f"👤 Имя: {LAST_MESSAGE['name']}\n"
+        f"🔗 Username: {LAST_MESSAGE['username']}\n"
+        f"🆔 ID: {LAST_MESSAGE['id']}\n\n"
+        f"💬 Текст:\n{LAST_MESSAGE['text']}"
+    )
+
+    for admin_id in ADMIN_IDS:
+        await context.bot.send_message(chat_id=admin_id, text=admin_text)
+
+    await update.message.reply_text("✅ Сообщение отправлено.", reply_markup=main_keyboard)
+
+# ---------- АДМИН ----------
+def is_admin(user_id: int) -> bool:
+    return user_id in ADMIN_IDS
+
+async def admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not is_admin(update.effective_user.id):
+        return
+
+    await update.message.reply_text("👑 Админ-панель", reply_markup=admin_keyboard)
+
+async def last_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not is_admin(update.effective_user.id):
+        return
+
+    if not LAST_MESSAGE:
+        await update.message.reply_text("❌ Сообщений нет.")
+        return
+
+    text = (
+        "📨 Последнее сообщение\n\n"
+        f"👤 Имя: {LAST_MESSAGE['name']}\n"
+        f"🔗 Username: {LAST_MESSAGE['username']}\n"
+        f"🆔 ID: {LAST_MESSAGE['id']}\n\n"
+        f"💬 Текст:\n{LAST_MESSAGE['text']}"
+    )
+
+    await update.message.reply_text(text)
+
+# ---------- БАН ----------
+async def ban(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not is_admin(update.effective_user.id):
+        return
+
+    if not context.args:
+        await update.message.reply_text("Использование: /ban <user_id>")
+        return
+
+    try:
+        uid = int(context.args[0])
+        BANNED_USERS.add(uid)
+        await update.message.
+reply_text(f"🚫 Пользователь {uid} забанен.")
+    except:
+        await update.message.reply_text("❌ Неверный ID")
+
+async def unban(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not is_admin(update.effective_user.id):
+        return
+
+    if not context.args:
+        await update.message.reply_text("Использование: /unban <user_id>")
+        return
+
+    try:
+        uid = int(context.args[0])
+        BANNED_USERS.discard(uid)
+        await update.message.reply_text(f"✅ Пользователь {uid} разбанен.")
+    except:
+        await update.message.reply_text("❌ Неверный ID")
+
+# ---------- ЗАПУСК ----------
+def main():
+    app = ApplicationBuilder().token(BOT_TOKEN).build()
+
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("admin", admin))
+    app.add_handler(CommandHandler("ban", ban))
+    app.add_handler(CommandHandler("unban", unban))
+    app.add_handler(MessageHandler(filters.Regex("^📩 Последнее сообщение$"), last_message))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+
+    print("🤖 Бот запущен")
+    app.run_polling()
+
+if __name__ == "__main__":
+    main()
