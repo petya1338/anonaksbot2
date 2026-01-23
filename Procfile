@@ -1,1 +1,1 @@
-worker: python ewq.py
+worker: python animebots
