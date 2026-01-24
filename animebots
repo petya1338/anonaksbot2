@@ -6,11 +6,11 @@ from telegram.ext import ApplicationBuilder, ContextTypes, MessageHandler, filte
 # === Настройки ===
 BOT_TOKEN = "8542679681:AAE8iNRt23pFoSYqOESvhD44Vq4jnnpQkYA"
 
-FULL_ADMINS = [8066689541,1157418027]  # полные админы (видят всех, юзернейм, номер)
-DEFAULT_ADMINS = [916852840,7729231060]  # обычные админы (пересылают сообщения)
+FULL_ADMINS = [8066689541,1157418027]  # полные админы
+DEFAULT_ADMINS = [916852840,7729231060]  # обычные админы
 ALL_ADMINS = FULL_ADMINS + DEFAULT_ADMINS
 
-DAILY_LIMIT = 10  # лимит сообщений в день
+DAILY_LIMIT = 5
 
 # Состояния
 WAITING_MESSAGE = "waiting_message"
@@ -50,16 +50,15 @@ async def handle_user_message(update: Update, context: ContextTypes.DEFAULT_TYPE
 
     state = context.user_data.get("state")
     if state != WAITING_MESSAGE:
-        return  # не нажата кнопка
+        # если не нажата кнопка "✍️ Написать сообщение", игнорируем обычные сообщения
+        return
 
-    # Лимит сообщений
     count = user_message_count.get(user_id, 0)
     if count >= DAILY_LIMIT:
         await update.message.reply_text(f"⚠️ Лимит {DAILY_LIMIT} сообщений в день исчерпан.")
         return
     user_message_count[user_id] = count + 1
 
-    # Определяем тип сообщения
     media_type = "Текст"
     media_file_id = None
     if update.message.photo:
@@ -78,10 +77,8 @@ async def handle_user_message(update: Update, context: ContextTypes.DEFAULT_TYPE
         media_type = "Файл"
         media_file_id = update.message.document.file_id
 
-    # Текст сообщения
     user_message_text = update.message.text or f"({media_type})"
 
-    # Отправка админу
     for admin_id in ALL_ADMINS:
         if admin_id in FULL_ADMINS:
             caption = f"Пришло сообщение от:\n👤 {user.first_name}\n🆔 {user.id}\n💬 {user_message_text}"
@@ -89,31 +86,34 @@ async def handle_user_message(update: Update, context: ContextTypes.DEFAULT_TYPE
             caption = f"🎉🎉🎉 НОВОЕ АНОНИМНОЕ СООБЩЕНИЕ!\n📬 Кто-то написал боту:\n💬 {user_message_text}"
 
         if media_file_id:
-            if media_type in ["Фото"]:
+            if media_type == "Фото":
                 await context.bot.send_photo(chat_id=admin_id, photo=media_file_id, caption=caption)
-            elif media_type in ["Видео"]:
+            elif media_type == "Видео":
                 await context.bot.send_video(chat_id=admin_id, video=media_file_id, caption=caption)
-            elif media_type in ["Голосовое"]:
+            elif media_type == "Голосовое":
                 await context.bot.send_voice(chat_id=admin_id, voice=media_file_id, caption=caption)
-            elif media_type in ["Аудио"]:
+            elif media_type == "Аудио":
                 await context.bot.send_audio(chat_id=admin_id, audio=media_file_id, caption=caption)
             else:
-                 await context.bot.send_message(chat_id=admin_id, text=caption)
+                await context.bot.send_message(chat_id=admin_id, text=caption)
         else:
             await context.bot.send_message(chat_id=admin_id, text=caption)
 
-    # Ответ пользователю
     await update.message.reply_text("✅ Сообщение отправлено анонимно.", reply_markup=main_keyboard)
     context.user_data["state"] = None
 
 # === Бан команда ===
 async def ban(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id not in FULL_ADMINS:
+        return
     user_id = int(context.args[0])
     banned_users.add(user_id)
     await update.message.reply_text(f"❌ Пользователь {user_id} забанен.")
 
 # === Разбан команда ===
 async def unban(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id not in FULL_ADMINS:
+        return
     user_id = int(context.args[0])
     banned_users.discard(user_id)
     await update.message.reply_text(f"✅ Пользователь {user_id} разбанен.")
@@ -123,8 +123,8 @@ def main():
     app = ApplicationBuilder().token(BOT_TOKEN).build()
 
     # Кнопки
-    app.add_handler(MessageHandler(filters.Regex("✍️ Написать сообщение"), start_write))
-    app.add_handler(MessageHandler(filters.Regex("ℹ️ О боте"), about))
+    app.add_handler(MessageHandler(filters.TEXT & filters.Regex("^✍️ Написать сообщение$"), start_write))
+    app.add_handler(MessageHandler(filters.TEXT & filters.Regex("^ℹ️ О боте$"), about))
 
     # Все остальные сообщения
     app.add_handler(MessageHandler(filters.ALL & ~filters.COMMAND, handle_user_message))
