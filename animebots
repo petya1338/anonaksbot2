@@ -139,7 +139,8 @@ for admin_id in all_admins:
             await context.bot.send_message(admin_id, caption)
 
     # уведомление пользователю
-    await update.message.reply_text("✅ Сообщение отправлено анонимно", reply_markup=main_keyboard)
+    
+await update.message.reply_text("✅ Сообщение отправлено анонимно", reply_markup=main_keyboard)
 
     # увеличиваем счетчик сообщений
     user_messages_count[user.id] = count + 1
