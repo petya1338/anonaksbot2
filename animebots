@@ -136,7 +136,7 @@ async def send_media(context, chat_id, media_type, media_id, caption):
         await context.bot.send_message(chat_id, caption)
     elif media_type == "audio":
         await context.bot.send_audio(chat_id, media_id, caption=caption)
-elif media_type == "document":
+    elif media_type == "document":
         await context.bot.send_document(chat_id, media_id, caption=caption)
 
 # ================== АДМИН БАН ==================
