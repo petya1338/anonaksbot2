@@ -96,12 +96,20 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     for admin in ALL_ADMINS:
         if admin in FULL_ADMINS:
-            caption = (
-                f"Пришло сообщение от:\n"
-                f"👤 {user.first_name}\n"
-                f"🔗 {username}\n"
-                f"🆔 {uid}\n"
-            )
+            user = update.effective_user
+uid = user.id
+
+if user.username:
+    username = f"@{user.username}"
+else:
+    username = "нет username"
+
+caption = (
+    "Пришло сообщение от:\n"
+    f"👤 {user.first_name}\n"
+    f"🔗 {username}\n"
+    f"🆔 {uid}\n"
+)
             if text:
                 caption += f"💬 {text}"
         else:
