@@ -14,12 +14,12 @@ from telegram.ext import (
 )
 
 # ================== НАСТРОЙКИ ==================
-BOT_TOKEN = "PASTE_BOT_TOKEN_HERE"
+BOT_TOKEN = "BOT_TOKEN"
 
 FULL_ADMINS = [111111111]
 DEFAULT_ADMINS = [222222222]
 
-DAILY_LIMIT = 5
+DAILY_LIMIT = 10
 BOT_USERNAME = "@anonymousaskkbot"
 
 # ================== ХРАНЕНИЕ ==================
