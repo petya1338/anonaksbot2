@@ -16,8 +16,8 @@ from telegram.ext import (
 
 BOT_TOKEN = "PASTE_YOUR_REAL_TOKEN_HERE"
 
-FULL_ADMINS = [111111111]        # ID фулл админов
-DEFAULT_ADMINS = [222222222]     # ID обычных админов
+FULL_ADMINS = [111111111]        # фулл админы
+DEFAULT_ADMINS = [222222222]     # обычные админы
 
 # ================= ЛОГИ =================
 
@@ -25,6 +25,11 @@ logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     level=logging.INFO
 )
+
+# ================= ХРАНИЛИЩА =================
+
+WAITING_USERS = set()
+BANNED_USERS = set()
 
 # ================= КНОПКИ =================
 
@@ -36,27 +41,36 @@ main_keyboard = ReplyKeyboardMarkup(
     resize_keyboard=True
 )
 
-# кто сейчас пишет сообщение
-WAITING_USERS = set()
-
 # ================= /start =================
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+
+    if user_id in BANNED_USERS:
+        await update.message.reply_text("🚫 Вы заблокированы.")
+        return
+
     await update.message.reply_text(
         "Привет! Ты можешь отправить анонимное сообщение 👇",
         reply_markup=main_keyboard
     )
 
-# ================= КНОПКА «НАПИСАТЬ» =================
+# ================= НАПИСАТЬ =================
 
 async def write_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    WAITING_USERS.add(update.effective_user.id)
+    user_id = update.effective_user.id
+
+    if user_id in BANNED_USERS:
+        await update.message.reply_text("🚫 Вы заблокированы.")
+        return
+
+    WAITING_USERS.add(user_id)
     await update.message.reply_text(
         "✍️ Напиши сообщение или отправь медиа",
         reply_markup=ReplyKeyboardRemove()
     )
 
-# ================= КНОПКА «О БОТЕ» =================
+# ================= О БОТЕ =================
 
 async def about_bot(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
@@ -65,11 +79,48 @@ async def about_bot(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_markup=main_keyboard
     )
 
-# ================= ОСНОВНОЙ ОБРАБОТЧИК =================
+# ================= БАН =================
+
+async def ban_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id not in FULL_ADMINS:
+        return
+
+    if not context.args:
+        await update.message.reply_text("❌ Используй: /ban ID")
+        return
+
+    try:
+        uid = int(context.args[0])
+        BANNED_USERS.add(uid)
+        await update.message.reply_text(f"🚫 Пользователь {uid} забанен")
+    except ValueError:
+        await update.message.reply_text("❌ Неверный ID")
+
+# ================= АНБАН =================
+
+async def unban_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id not in FULL_ADMINS:
+        return
+
+    if not context.args:
+        await update.message.reply_text("❌ Используй: /unban ID")
+        return
+
+    try:
+        uid = int(context.args[0])
+        BANNED_USERS.discard(uid)
+        await update.message.reply_text(f"✅ Пользователь {uid} разбанен")
+    except ValueError:
+        await update.message.reply_text("❌ Неверный ID")
+
+# ================= ОБРАБОТКА СООБЩЕНИЙ =================
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     msg = update.message
+
+    if user.id in BANNED_USERS:
+        return
 
     if user.id not in WAITING_USERS:
         return
@@ -101,7 +152,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         media = msg.audio.file_id
         media_type = "🎵 Музыка"
 
-    # ---------- FULL ADMINS ----------
+    # ===== FULL ADMINS =====
     for admin_id in FULL_ADMINS:
         caption = (
             "Пришло сообщение от:\n"
@@ -131,7 +182,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         else:
             await context.bot.send_message(admin_id, caption)
 
-    # ---------- DEFAULT ADMINS ----------
+    # ===== DEFAULT ADMINS =====
     for admin_id in DEFAULT_ADMINS:
         caption = "У тебя новое анонимное сообщение!\n\n"
 
@@ -166,6 +217,9 @@ def main():
     app = ApplicationBuilder().token(BOT_TOKEN).build()
 
     app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("ban", ban_user))
+    app.add_handler(CommandHandler("unban", unban_user))
+
     app.add_handler(MessageHandler(filters.Regex("^✍️ Написать сообщение$"), write_message))
     app.add_handler(MessageHandler(filters.Regex("^ℹ️ О боте$"), about_bot))
     app.add_handler(MessageHandler(filters.ALL & ~filters.COMMAND, handle_message))
