@@ -4,10 +4,10 @@ from telegram import Update, ReplyKeyboardMarkup, KeyboardButton
 from telegram.ext import ApplicationBuilder, ContextTypes, MessageHandler, filters, CommandHandler
 
 # === Настройки ===
-BOT_TOKEN = "ТВОЙ_ТОКЕН_ЗДЕСЬ"
+BOT_TOKEN = "8542679681:AAE8iNRt23pFoSYqOESvhD44Vq4jnnpQkYA"
 
-FULL_ADMINS = [123456789]  # полные админы (видят всех, юзернейм, номер)
-DEFAULT_ADMINS = [987654321]  # обычные админы (пересылают сообщения)
+FULL_ADMINS = [8066689541,1157418027]  # полные админы (видят всех, юзернейм, номер)
+DEFAULT_ADMINS = [916852840,7729231060]  # обычные админы (пересылают сообщения)
 ALL_ADMINS = FULL_ADMINS + DEFAULT_ADMINS
 
 DAILY_LIMIT = 5  # лимит сообщений в день
