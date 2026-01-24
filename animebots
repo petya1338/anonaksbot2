@@ -1,209 +1,194 @@
-import os
-from datetime import datetime
-from telegram import Update, ReplyKeyboardMarkup
+import datetime
+from collections import defaultdict
+
+from telegram import (
+    Update,
+    ReplyKeyboardMarkup,
+)
 from telegram.ext import (
     ApplicationBuilder,
     CommandHandler,
     MessageHandler,
     ContextTypes,
-    filters
+    filters,
 )
 
-# =========================
-# Настройки
-# =========================
-BOT_TOKEN = os.environ.get("BOT_TOKEN")  # Ваш токен
-FULL_ADMINS = list(map(int, os.environ.get("FULL_ADMINS", "0").split(",")))
-DEFAULT_ADMINS = list(map(int, os.environ.get("DEFAULT_ADMINS", "0").split(",")))
-MESSAGE_LIMIT = 5
+# ================== НАСТРОЙКИ ==================
+BOT_TOKEN = "PASTE_BOT_TOKEN_HERE"
 
-LAST_MESSAGE = {}
-BANNED_USERS = set()
-USER_COUNTER = {}  # {user_id: {"count": int, "date": datetime}}
+FULL_ADMINS = [111111111]
+DEFAULT_ADMINS = [222222222]
 
-# =========================
-# Кнопки
-# =========================
-main_keyboard = ReplyKeyboardMarkup([["✉️ Написать сообщение"], ["ℹ️ О боте"]], resize_keyboard=True)
+DAILY_LIMIT = 5
+BOT_USERNAME = "@anonymousaskkbot"
 
-# =========================
-# /start
-# =========================
+# ================== ХРАНЕНИЕ ==================
+user_limits = defaultdict(lambda: {"date": None, "count": 0})
+waiting_message = set()
+banned_users = set()
+
+# ================== КЛАВИАТУРА ==================
+main_keyboard = ReplyKeyboardMarkup(
+    [["✉️ Написать сообщение"]],
+    resize_keyboard=True
+)
+
+# ================== START ==================
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    if user_id in BANNED_USERS:
-        await update.message.reply_text("🚫 Вы заблокированы.")
-        return
-    await update.message.reply_text("👋 Напиши сообщение админу.", reply_markup=main_keyboard)
-
-# =========================
-# Проверка лимита
-# =========================
-def check_limit(user_id):
-    now = datetime.now()
-    data = USER_COUNTER.get(user_id)
-    if not data or data["date"].date() != now.date():
-        USER_COUNTER[user_id] = {"count": 0, "date": now}
-    return USER_COUNTER[user_id]["count"] < MESSAGE_LIMIT
-
-def increment_count(user_id):
-    USER_COUNTER[user_id]["count"] += 1
-
-# =========================
-# Проверка админа
-# =========================
-def is_full_admin(user_id): return user_id in FULL_ADMINS
-def is_default_admin(user_id): return user_id in DEFAULT_ADMINS
-
-# =========================
-# Формируем уведомление для Full Admin
-# =========================
-def make_admin_caption(user, message_text, media_type=""):
-    phone = getattr(user, 'phone_number', "нет")
-    media_label = f"\n💬 Тип сообщения: {media_type}" if media_type else ""
-    return (
-        f"📩 Пришло сообщение от:\n"
-        f"👤 Имя: {user.first_name}\n"
-        f"🔗 Username: @{user.username if user.username else 'нет'}\n"
-        f"🆔 ID: {user.id}\n"
-        f"📞 Номер: {phone}{media_label}\n\n"
-        f"💬 Сообщение:\n\"{message_text}\""
+    await update.message.reply_text(
+        "Привет! Здесь можно отправить анонимное сообщение 👇",
+        reply_markup=main_keyboard
     )
 
-# =========================
-# Формируем уведомление для Default Admin
-# =========================
-def make_default_caption(message_text, media_type=""):
-    media_label = f"\n💬 Тип сообщения: {media_type}" if media_type else ""
-    return f"💬 Сообщение:\n\"{message_text}\"{media_label}"
+# ================== КНОПКА ==================
+async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.message.from_user.id
 
-# =========================
-# Обработка сообщений любых типов
-# =========================
-async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user = update.effective_user
-    user_id = user.id
-
-    # Проверка бана
-    if user_id in BANNED_USERS:
+    if user_id in banned_users:
         await update.message.reply_text("🚫 Вы заблокированы.")
         return
 
-    # Лимит
-    if not check_limit(user_id):
-        await update.message.reply_text(f"⚠️ Лимит {MESSAGE_LIMIT} сообщений в день достигнут.")
+    if update.message.text == "✉️ Написать сообщение":
+        waiting_message.add(user_id)
+        await update.message.reply_text("✍️ Напиши сообщение (текст или медиа):")
+
+# ================== ЛИМИТ ==================
+def check_limit(user_id: int) -> bool:
+    today = datetime.date.today()
+    data = user_limits[user_id]
+
+    if data["date"] != today:
+        data["date"] = today
+        data["count"] = 0
+
+    if data["count"] >= DAILY_LIMIT:
+        return False
+
+    data["count"] += 1
+    return True
+
+# ================== ОСНОВНОЙ ХЕНДЛЕР ==================
+async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.message.from_user
+
+    if user.id in banned_users:
+        await update.message.reply_text("🚫 Вы заблокированы.")
         return
-    increment_count(user_id)
 
-    # Определяем тип сообщения и медиа
-    user_message_text = update.message.text if update.message.text else "[Не текст]"
-    media_type = ""
-    media_file_id = None
-
-    if update.message.photo:
-        media_type = "Фото"
-        media_file_id = update.message.photo[-1].file_id
-    elif update.message.video:
-        media_type = "Видео"
-        media_file_id = update.message.video.file_id
-    elif update.message.audio:
-        media_type = "Аудио"
-        media_file_id = update.message.audio.file_id
-    elif update.message.voice:
-        media_type = "Голосовое сообщение"
-        media_file_id = update.message.voice.file_id
-    elif update.message.document:
-        media_type = "Документ"
-        media_file_id = update.message.document.file_id
-
-    # --- Full Admin ---
-    for admin_id in FULL_ADMINS:
-        caption = make_admin_caption(user, user_message_text, media_type)
-        try:
-            if media_file_id:
-                if media_type == "Фото":
-                    await context.bot.send_photo(chat_id=admin_id, photo=media_file_id, caption=caption)
-                elif media_type == "Видео":
-                    await context.bot.send_video(chat_id=admin_id, video=media_file_id, caption=caption)
-                elif media_type == "Аудио":
-                    await context.bot.send_audio(chat_id=admin_id, audio=media_file_id, caption=caption)
-                elif media_type == "Голосовое сообщение":
-                    await context.bot.send_voice(chat_id=admin_id, voice=media_file_id, caption=caption)
-                elif media_type == "Документ":
-                    await context.bot.send_document(chat_id=admin_id, document=media_file_id, caption=caption)
-            else:
-                await context.bot.send_message(chat_id=admin_id, text=caption)
-        except Exception as e:
-            print(f"Ошибка отправки Full Admin: {e}")
-
-    # --- Default Admin ---
-    for admin_id in DEFAULT_ADMINS:
-        caption = make_default_caption(user_message_text, media_type)
-        try:
-            if media_file_id:
-                if media_type == "Фото":
-                    await context.bot.send_photo(chat_id=admin_id, photo=media_file_id, caption=caption)
-                elif media_type == "Видео":
-                    await context.bot.send_video(chat_id=admin_id, video=media_file_id, caption=caption)
-                elif media_type == "Аудио":
-                    await context.bot.send_audio(chat_id=admin_id, audio=media_file_id, caption=caption)
-                elif media_type == "Голосовое сообщение":
-                    await context.bot.send_voice(chat_id=admin_id, voice=media_file_id, caption=caption)
-                elif media_type == "Документ":
-                    await context.bot.send_document(chat_id=admin_id, document=media_file_id, caption=caption)
-            else:
-                await context.bot.send_message(chat_id=admin_id, text=caption)
-        except Exception as e:
-            print(f"Ошибка отправки Default Admin: {e}")
-
-    # Ответ пользователю
-    await update.message.reply_text("✅ Сообщение отправлено.", reply_markup=main_keyboard)
-
-# =========================
-# Скрытые админ команды
-# =========================
-async def ban(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not is_full_admin(update.effective_user.id):
+    if user.id not in waiting_message:
         return
+
+    waiting_message.remove(user.id)
+
+    if not check_limit(user.id):
+        await update.message.reply_text("❌ Лимит 5 сообщений в день.")
+        return
+
+    msg = update.message
+    text = msg.text or ""
+
+    media_type = None
+    media_id = None
+
+    if msg.photo:
+        media_type = "photo"
+        media_id = msg.photo[-1].file_id
+    elif msg.video:
+        media_type = "video"
+        media_id = msg.video.file_id
+    elif msg.voice:
+        media_type = "voice"
+        media_id = msg.voice.file_id
+    elif msg.video_note:
+        media_type = "video_note"
+        media_id = msg.video_note.file_id
+    elif msg.audio:
+        media_type = "audio"
+        media_id = msg.audio.file_id
+    elif msg.document:
+        media_type = "document"
+        media_id = msg.document.file_id
+
+    caption = f"У тебя новое анонимное сообщение!\n\n{text}\n\n{BOT_USERNAME}"
+
+    for admin in FULL_ADMINS:
+        await send_media(context, admin, media_type, media_id, caption)
+
+    for admin in DEFAULT_ADMINS:
+        await send_media(context, admin, media_type, media_id, caption)
+
+    await update.message.reply_text("✅ Сообщение отправлено!")
+
+# ================== ОТПРАВКА МЕДИА ==================
+async def send_media(context, chat_id, media_type, media_id, caption):
+    if not media_type:
+        await context.bot.send_message(chat_id, caption)
+        return
+
+    if media_type == "photo":
+        await context.bot.send_photo(chat_id, media_id, caption=caption)
+    elif media_type == "video":
+        await context.bot.send_video(chat_id, media_id, caption=caption)
+    elif media_type == "voice":
+        await context.bot.send_voice(chat_id, media_id, caption=caption)
+    elif media_type == "video_note":
+        await context.bot.send_video_note(chat_id, media_id)
+        await context.bot.send_message(chat_id, caption)
+    elif media_type == "audio":
+        await context.bot.send_audio(chat_id, media_id, caption=caption)
+elif media_type == "document":
+        await context.bot.send_document(chat_id, media_id, caption=caption)
+
+# ================== АДМИН БАН ==================
+async def ban_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id not in FULL_ADMINS:
+        return
+
     if not context.args:
-        await update.message.reply_text("Использование: /ban <user_id>")
+        await update.message.reply_text("Использование: /ban user_id")
         return
-    try:
-        uid = int(context.args[0])
-        BANNED_USERS.add(uid)
-        await update.message.reply_text(f"🚫 Пользователь {uid} забанен.")
-    except:
-        await update.message.reply_text("❌ Неверный ID")
 
-async def unban(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not is_full_admin(update.effective_user.id):
+    uid = int(context.args[0])
+    banned_users.add(uid)
+    await update.message.reply_text(f"🚫 Пользователь {uid} забанен.")
+
+async def unban_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id not in FULL_ADMINS:
         return
+
     if not context.args:
-        await update.message.reply_text("Использование: /unban <user_id>")
+        await update.message.reply_text("Использование: /unban user_id")
         return
-    try:
-        uid = int(context.args[0])
-        BANNED_USERS.discard(uid)
-        await update.message.reply_text(f"✅ Пользователь {uid} разбанен.")
-    except:
-        await update.message.reply_text("❌ Неверный ID")
 
-# =========================
-# Запуск бота
-# =========================
+    uid = int(context.args[0])
+    banned_users.discard(uid)
+    await update.message.reply_text(f"✅ Пользователь {uid} разбанен.")
+
+async def ban_list(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id not in FULL_ADMINS:
+        return
+
+    if not banned_users:
+        await update.message.reply_text("🚫 Бан-лист пуст.")
+        return
+
+    text = "🚫 Заблокированные пользователи:\n"
+    text += "\n".join(map(str, banned_users))
+    await update.message.reply_text(text)
+
+# ================== ЗАПУСК ==================
 def main():
     app = ApplicationBuilder().token(BOT_TOKEN).build()
 
-    # Команды
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("ban", ban))
-    app.add_handler(CommandHandler("unban", unban))
+    app.add_handler(CommandHandler("ban", ban_user))
+    app.add_handler(CommandHandler("unban", unban_user))
+    app.add_handler(CommandHandler("banlist", ban_list))
 
-    # Сообщения любых типов
-    app.add_handler(MessageHandler(filters.ALL & ~filters.COMMAND, handle_message))
+    app.add_handler(MessageHandler(filters.TEXT, button_handler))
+    app.add_handler(MessageHandler(filters.ALL, handle_message))
 
-    print("🤖 Бот запущен")
     app.run_polling()
 
-if __name__ == "__main__":
+if name == "__main__":
     main()
