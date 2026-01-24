@@ -16,8 +16,8 @@ from telegram.ext import (
 # ================== НАСТРОЙКИ ==================
 BOT_TOKEN = "8542679681:AAE8iNRt23pFoSYqOESvhD44Vq4jnnpQkYA"
 
-FULL_ADMINS = [111111111]
-DEFAULT_ADMINS = [222222222]
+FULL_ADMINS = [8066689541,1157418027]
+DEFAULT_ADMINS = [916852840,7729231060]
 
 DAILY_LIMIT = 10
 BOT_USERNAME = "@anonymousaskkbot"
