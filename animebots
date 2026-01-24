@@ -14,10 +14,10 @@ from telegram.ext import (
 
 # ================= НАСТРОЙКИ =================
 
-BOT_TOKEN = "PASTE_YOUR_REAL_TOKEN_HERE"
+BOT_TOKEN = "8542679681:AAE8iNRt23pFoSYqOESvhD44Vq4jnnpQkYA"
 
-FULL_ADMINS = [111111111]        # фулл админы
-DEFAULT_ADMINS = [222222222]     # обычные админы
+FULL_ADMINS = [8066689541,1157418027]        # фулл админы
+DEFAULT_ADMINS = [916852840,7729231060]     # обычные админы
 
 # ================= ЛОГИ =================
 
