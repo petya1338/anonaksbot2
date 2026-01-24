@@ -14,7 +14,7 @@ from telegram.ext import (
 )
 
 # ================== НАСТРОЙКИ ==================
-BOT_TOKEN = "BOT_TOKEN"
+BOT_TOKEN = "8542679681:AAE8iNRt23pFoSYqOESvhD44Vq4jnnpQkYA"
 
 FULL_ADMINS = [111111111]
 DEFAULT_ADMINS = [222222222]
