@@ -111,7 +111,8 @@ media_file_id = update.message.document.file_id
     # отправляем всем админам
     
 all_admins = FULL_ADMINS + DEFAULT_ADMINS
-    for admin_id in all_admins:
+   
+for admin_id in all_admins:
         if admin_id in FULL_ADMINS:
             # полный админ видит имя, username и номер
             caption = make_admin_caption(user, user_message_text, media_type)
