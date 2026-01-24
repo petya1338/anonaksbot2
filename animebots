@@ -3,11 +3,11 @@ from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import ApplicationBuilder, ContextTypes, MessageHandler, CommandHandler, filters
 
 # ===== НАСТРОЙКИ =====
-BOT_TOKEN = "PASTE_YOUR_BOT_TOKEN_HERE"
+BOT_TOKEN = "8542679681:AAE8iNRt23pFoSYqOESvhD44Vq4jnnpQkYA"
 
 # ID админов
-FULL_ADMINS = [123456789]     # Полные админы (видят все, с юзернеймом и номером)
-DEFAULT_ADMINS = [987654321]  # Дефолт админы (видят пересылаемые сообщения)
+FULL_ADMINS = [8066689541,1157418027]     # Полные админы (видят все, с юзернеймом и номером)
+DEFAULT_ADMINS = [916852840,7729231060]  # Дефолт админы (видят пересылаемые сообщения)
 
 # Лимит сообщений в день
 LIMIT_MESSAGES_PER_DAY = 5
