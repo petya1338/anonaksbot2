@@ -99,8 +99,8 @@ async def handle_user_message(update: Update, context: ContextTypes.DEFAULT_TYPE
                 await context.bot.send_audio(chat_id=admin_id, audio=media_file_id, caption=caption)
             else:
                  await context.bot.send_message(chat_id=admin_id, text=caption)
-            else:
-                await context.bot.send_message(chat_id=admin_id, text=caption)
+        else:
+            await context.bot.send_message(chat_id=admin_id, text=caption)
 
     # Ответ пользователю
     await update.message.reply_text("✅ Сообщение отправлено анонимно.", reply_markup=main_keyboard)
