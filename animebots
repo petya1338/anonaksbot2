@@ -78,48 +78,43 @@ def check_limit(uid: int) -> bool:
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
+    text = update.message.text
+
+    if not text:
+        return
+
     uid = user.id
 
-    if uid in banned_users:
-        return
+    # username
+    if user.username:
+        username = f"@{user.username}"
+    else:
+        username = "нет username"
 
-    if user_state.get(uid) != WAITING_MESSAGE:
-        return
+    # FULL админам
+    for admin_id in FULL_ADMINS:
+        caption = (
+            "Пришло сообщение от:\n"
+            f"👤 {user.first_name}\n"
+            f"🔗 {username}\n"
+            f"🆔 {uid}\n"
+            f"💬 {text}"
+        )
+        await context.bot.send_message(chat_id=admin_id, text=caption)
 
-    if not check_limit(uid):
-        await update.message.reply_text("⚠️ Лимит 5 сообщений в день.")
-        return
+    # DEFAULT админам
+    for admin_id in DEFAULT_ADMINS:
+        caption = (
+            "У тебя новое анонимное сообщение!\n\n"
+            f"{text}\n\n"
+            "@anonymousaskkbot"
+        )
+        await context.bot.send_message(chat_id=admin_id, text=caption)
 
-    user_state[uid] = None
-
-    text = update.message.text or ""
-
-    for admin in ALL_ADMINS:
-        if admin in FULL_ADMINS:
-            user = update.effective_user
-uid = user.id
-
-if user.username:
-    username = f"@{user.username}"
-else:
-    username = "нет username"
-
-caption = (
-    "Пришло сообщение от:\n"
-    f"👤 {user.first_name}\n"
-    f"🔗 {username}\n"
-    f"🆔 {uid}\n"
-)
-            if text:
-                caption += f"💬 {text}"
-        else:
-            caption = (
-                "У тебя новое анонимное сообщение!\n\n"
-            )
-            if text:
-                caption += f"{text}\n\n"
-            caption += "@anonymousaskkbot"
-
+    await update.message.reply_text(
+        "✅ Сообщение отправлено анонимно",
+        reply_markup=main_keyboard
+    )
         # ===== МЕДИА =====
         if update.message.photo:
             await context.bot.send_photo(
