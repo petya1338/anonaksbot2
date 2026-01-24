@@ -109,7 +109,8 @@ async def handle_user_message(update: Update, context: ContextTypes.DEFAULT_TYPE
 media_file_id = update.message.document.file_id
 
     # отправляем всем админам
-    all_admins = FULL_ADMINS + DEFAULT_ADMINS
+    
+all_admins = FULL_ADMINS + DEFAULT_ADMINS
     for admin_id in all_admins:
         if admin_id in FULL_ADMINS:
             # полный админ видит имя, username и номер
