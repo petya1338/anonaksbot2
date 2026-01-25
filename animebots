@@ -1,10 +1,12 @@
 import logging
 from telegram import (
     Update,
-    InlineKeyboardButton,
-    InlineKeyboardMarkup,
     ReplyKeyboardMarkup,
-    ReplyKeyboardRemove
+    ReplyKeyboardRemove,
+    InlineKeyboardMarkup,
+    InlineKeyboardButton,
+    InputMediaPhoto,
+    InputMediaVideo
 )
 from telegram.ext import (
     ApplicationBuilder,
@@ -16,151 +18,273 @@ from telegram.ext import (
 )
 
 # ================= НАСТРОЙКИ =================
-BOT_TOKEN = "8542679681:AAE8iNRt23pFoSYqOESvhD44Vq4jnnpQkYA"
 
-FULL_ADMINS = [8066689541,1157418027]       # фулл админы
-DEFAULT_ADMINS = [916852840,7729231060]    # дефолт админы
-CHANNEL_ID = "-1002273765519"
+BOT_TOKEN = "8542679681:AAE8iNRt23pFoSYqOESvhD44Vq4jnnpQkYA"
+CHANNEL_ID = "-1002273765519"  # для публикации
+
+FULL_ADMINS = [8066689541, 1157418027]        # полные админы
+DEFAULT_ADMINS = [916852840, 7729231060]     # обычные админы
+
+MAX_MESSAGES_PER_DAY = 5
 
 # ================= ЛОГИ =================
-logging.basicConfig(level=logging.INFO)
+
+logging.basicConfig(
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    level=logging.INFO
+)
 
 # ================= ХРАНИЛИЩА =================
+
 WAITING_USERS = set()
 BANNED_USERS = set()
-PENDING_MESSAGES = {}
+USER_MESSAGE_COUNT = {}
+PENDING_MESSAGES = {}  # message_id: dict с info для callback
 
 # ================= КНОПКИ =================
+
 main_keyboard = ReplyKeyboardMarkup(
     [["✍️ Написать сообщение"], ["ℹ️ О боте"]],
     resize_keyboard=True
 )
 
 # ================= /start =================
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id in BANNED_USERS:
+    user_id = update.effective_user.id
+    if user_id in BANNED_USERS:
         await update.message.reply_text("🚫 Вы заблокированы.")
         return
 
     await update.message.reply_text(
-        "Привет! Отправь анонимное сообщение 👇",
+        "Привет! Ты можешь отправить анонимное сообщение 👇",
         reply_markup=main_keyboard
     )
 
 # ================= НАПИСАТЬ =================
+
 async def write_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    WAITING_USERS.add(update.effective_user.id)
+    user_id = update.effective_user.id
+    if user_id in BANNED_USERS:
+        await update.message.reply_text("🚫 Вы заблокированы.")
+        return
+
+    # лимит сообщений
+    if USER_MESSAGE_COUNT.get(user_id, 0) >= MAX_MESSAGES_PER_DAY:
+        await update.message.reply_text("⚠️ Лимит сообщений на сегодня исчерпан.")
+        return
+
+    WAITING_USERS.add(user_id)
     await update.message.reply_text(
         "✍️ Напиши сообщение или отправь медиа",
         reply_markup=ReplyKeyboardRemove()
     )
 
 # ================= О БОТЕ =================
+
 async def about_bot(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        "🤖 Анонимный бот сообщений",
+        "🤖 Анонимный бот для сообщений\n\n"
+        "Ты можешь отправить текст или медиа анонимно.",
         reply_markup=main_keyboard
     )
 
 # ================= БАН =================
+
 async def ban_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id not in FULL_ADMINS:
         return
-    uid = int(context.args[0])
-    BANNED_USERS.add(uid)
-    await update.message.reply_text("🚫 Пользователь забанен")
+    if not context.args:
+        await update.message.reply_text("❌ Используй: /ban ID")
+        return
+    try:
+        uid = int(context.args[0])
+        BANNED_USERS.add(uid)
+        await update.message.reply_text(f"🚫 Пользователь {uid} забанен")
+    except ValueError:
+        await update.message.reply_text("❌ Неверный ID")
 
-# ================= СООБЩЕНИЯ =================
+# ================= АНБАН =================
+
+async def unban_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id not in FULL_ADMINS:
+        return
+    if not context.args:
+        await update.message.reply_text("❌ Используй: /unban ID")
+        return
+    try:
+        uid = int(context.args[0])
+        BANNED_USERS.discard(uid)
+        await update.message.reply_text(f"✅ Пользователь {uid} разбанен")
+    except ValueError:
+        await update.message.reply_text("❌ Неверный ID")
+
+# ================= ОБРАБОТКА СООБЩЕНИЙ =================
+
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     msg = update.message
 
-    if user.id in BANNED_USERS or user.id not in WAITING_USERS:
+    if user.id in BANNED_USERS:
+        return
+    if user.id not in WAITING_USERS:
         return
 
     WAITING_USERS.remove(user.id)
+    USER_MESSAGE_COUNT[user.id] = USER_MESSAGE_COUNT.get(user.id, 0) + 1
 
+    # Получаем текст и медиа
     text = msg.text or ""
-    media = None
+    media_file_id = None
     media_type = None
 
     if msg.photo:
-        media = msg.photo[-1].file_id
+        media_file_id = msg.photo[-1].file_id
         media_type = "photo"
     elif msg.video:
-        media = msg.video.file_id
+        media_file_id = msg.video.file_id
         media_type = "video"
+    elif msg.voice:
+        media_file_id = msg.voice.file_id
+        media_type = "voice"
+    elif msg.audio:
+        media_file_id = msg.audio.file_id
+        media_type = "audio"
+    elif msg.video_note:
+        media_file_id = msg.video_note.file_id
+        media_type = "video_note"
 
-    final_caption = (
-        "У тебя новое анонимное сообщение!\n\n"
-        f"{text}\n\n"
-        "@anonymousaskkbot"
-    )
+    # ==== FULL ADMINS ====
+    for admin_id in FULL_ADMINS:
+        username = f"@{user.username}" if user.username else "нет username"
+        caption = f"Пришло сообщение от:\n👤 {user.first_name}\n🔗 {username}\n🆔 {user.id}"
+        if text:
+            caption += f"\n💬 {text}"
 
-    keyboard = InlineKeyboardMarkup([
-        [InlineKeyboardButton("✅ ОПУБЛИКОВАТЬ", callback_data="publish")],
-        [InlineKeyboardButton("🔴 ИГНОРИРОВАТЬ", callback_data="ignore")],
-        [InlineKeyboardButton("🚫 ЗАБЛОКИРОВАТЬ", callback_data=f"ban:{user.id}")]
-    ])
+        # Отправка медиа
+        if media_file_id:
+            if media_type == "photo":
+                await context.bot.send_photo(admin_id, media_file_id, caption=caption)
+            elif media_type == "video":
+                await context.bot.send_video(admin_id, media_file_id, caption=caption)
+            elif media_type == "voice":
+                await context.bot.send_voice(admin_id, media_file_id, caption=caption)
+            elif media_type == "audio":
+                await context.bot.send_audio(admin_id, media_file_id, caption=caption)
+            elif media_type == "video_note":
+                await context.bot.send_video_note(admin_id, media_file_id)
+                await context.bot.send_message(admin_id, caption)
+        else:
+            await context.bot.send_message(admin_id, caption)
 
+    # ==== DEFAULT ADMINS ====
     for admin_id in DEFAULT_ADMINS:
-        PENDING_MESSAGES[admin_id] = {
-            "caption": final_caption,
-            "media": media,
+        caption = "У тебя новое анонимное сообщение!\n\n"
+        if text:
+            caption += f"{text}\n\n"
+        caption += "@anonymousaskkbot"
+
+        # Inline кнопки
+        buttons = InlineKeyboardMarkup([
+            [
+                InlineKeyboardButton("✅ ОПУБЛИКОВАТЬ", callback_data="publish"),
+                InlineKeyboardButton("🔴 ИГНОРИРОВАТЬ", callback_data="ignore"),
+                InlineKeyboardButton("🚫 ЗАБЛОКИРОВАТЬ", callback_data=f"ban:{user.id}")
+            ]
+        ])
+
+        # Отправляем медиа с подписью
+        if media_file_id:
+            if media_type == "photo":
+                sent_msg = await context.bot.send_photo(admin_id, media_file_id, caption=caption, reply_markup=buttons)
+            elif media_type == "video":
+                sent_msg = await context.bot.send_video(admin_id, media_file_id, caption=caption, reply_markup=buttons)
+            elif media_type == "voice":
+                sent_msg = await context.bot.send_voice(admin_id, media_file_id, caption=caption, reply_markup=buttons)
+            elif media_type == "audio":
+                sent_msg = await context.bot.send_audio(admin_id, media_file_id, caption=caption, reply_markup=buttons)
+            elif media_type == "video_note":
+                sent_msg = await context.bot.send_video_note(admin_id, media_file_id, reply_markup=buttons)
+                await context.bot.send_message(admin_id, caption)
+        else:
+            sent_msg = await context.bot.send_message(admin_id, caption, reply_markup=buttons)
+
+        # Сохраняем сообщение для callback
+        PENDING_MESSAGES[sent_msg.message_id] = {
+            "text": text,
+            "media_file_id": media_file_id,
             "media_type": media_type,
             "user_id": user.id
         }
 
-        if media_type == "photo":
-            await context.bot.send_photo(admin_id, media, caption=final_caption, reply_markup=keyboard)
-        elif media_type == "video":
-            await context.bot.send_video(admin_id, media, caption=final_caption, reply_markup=keyboard)
-        else:
-            await context.bot.send_message(admin_id, final_caption, reply_markup=keyboard)
+    await msg.reply_text("✅ Сообщение отправлено анонимно", reply_markup=main_keyboard)
 
-    await msg.reply_text("✅ Отправлено", reply_markup=main_keyboard)
+# ================= CALLBACK =================
 
-# ================= КНОПКИ =================
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
 
-    admin_id = query.from_user.id
-    data = PENDING_MESSAGES.get(admin_id)
-    if not data:
-        await query.edit_message_text("❌ Устарело")
+    data = query.data
+    msg_id = query.message.message_id
+
+    if msg_id not in PENDING_MESSAGES:
+        await query.message.edit_reply_markup(None)
         return
 
-    caption = data["caption"]
-    media = data["media"]
-    media_type = data["media_type"]
+    info = PENDING_MESSAGES[msg_id]
+    text = info["text"]
+    media_file_id = info["media_file_id"]
+    media_type = info["media_type"]
+    user_id = info["user_id"]
 
-    if query.data == "publish":
-        if media_type == "photo":
-            await context.bot.send_photo(CHANNEL_ID, media, caption=caption)
-        elif media_type == "video":
-            await context.bot.send_video(CHANNEL_ID, media, caption=caption)
+    if data == "publish":
+        caption = "У тебя новое анонимное сообщение!\n\n"
+        if text:
+            caption += f"{text}\n\n"
+        caption += "@anonymousaskkbot"
+
+        # Публикуем в канал
+        if media_file_id:
+            if media_type == "photo":
+                await context.bot.send_photo(CHANNEL_ID, media_file_id, caption=caption)
+            elif media_type == "video":
+                await context.bot.send_video(CHANNEL_ID, media_file_id, caption=caption)
+            elif media_type == "voice":
+                await context.bot.send_voice(CHANNEL_ID, media_file_id, caption=caption)
+            elif media_type == "audio":
+                await context.bot.send_audio(CHANNEL_ID, media_file_id, caption=caption)
+            elif media_type == "video_note":
+                await context.bot.send_video_note(CHANNEL_ID, media_file_id)
+                await context.bot.send_message(CHANNEL_ID, caption)
         else:
             await context.bot.send_message(CHANNEL_ID, caption)
 
-        await query.edit_message_text("✅ Опубликовано")
+        await query.message.edit_reply_markup(None)
+        await query.message.reply_text("✅ Опубликовано")
 
-    elif query.data == "ignore":
-        await query.edit_message_text("🔴 Проигнорировано")
+    elif data == "ignore":
+        await query.message.edit_reply_markup(None)
+        await query.message.reply_text("🔴 Игнорировано")
 
-    elif query.data.startswith("ban"):
-        uid = int(query.data.split(":")[1])
-        BANNED_USERS.add(uid)
-        await query.edit_message_text("🚫 Пользователь забанен")
-
-    PENDING_MESSAGES.pop(admin_id, None)
+    elif data.startswith("ban:"):
+        try:
+            uid = int(data.split(":")[1])
+            BANNED_USERS.add(uid)
+            await query.message.edit_reply_markup(None)
+            await query.message.reply_text(f"🚫 Пользователь {uid} заблокирован")
+        except:
+            pass
 
 # ================= ЗАПУСК =================
+
 def main():
     app = ApplicationBuilder().token(BOT_TOKEN).build()
 
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("ban", ban_user))
+    app.add_handler(CommandHandler("unban", unban_user))
+
     app.add_handler(MessageHandler(filters.Regex("^✍️ Написать сообщение$"), write_message))
     app.add_handler(MessageHandler(filters.Regex("^ℹ️ О боте$"), about_bot))
     app.add_handler(MessageHandler(filters.ALL & ~filters.COMMAND, handle_message))
