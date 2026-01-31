@@ -38,7 +38,9 @@ logging.basicConfig(
 
 WAITING_USERS = set()
 BANNED_USERS = set()
-USER_MESSAGE_COUNT = {}
+from datetime import date
+
+USER_MESSAGE_COUNT = {}  # user_id: {"date": date, "count": int}
 PENDING_MESSAGES = {}  # message_id: dict с info для callback
 
 # ================= КНОПКИ =================
@@ -70,7 +72,12 @@ async def write_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     # лимит сообщений
-    if USER_MESSAGE_COUNT.get(user_id, 0) >= MAX_MESSAGES_PER_DAY:
+    today = date.today()
+
+user_data = USER_MESSAGE_COUNT.get(user_id)
+
+if user_data:
+    if user_data["date"] == today and user_data["count"] >= MAX_MESSAGES_PER_DAY:
         await update.message.reply_text("⚠️ Лимит сообщений на сегодня исчерпан.")
         return
 
