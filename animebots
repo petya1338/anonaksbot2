@@ -67,21 +67,21 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def write_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
+
     if user_id in BANNED_USERS:
         await update.message.reply_text("🚫 Вы заблокированы.")
         return
 
-    # лимит сообщений
     today = date.today()
+    user_data = USER_MESSAGE_COUNT.get(user_id)
 
-user_data = USER_MESSAGE_COUNT.get(user_id)
-
-if user_data:
-    if user_data["date"] == today and user_data["count"] >= MAX_MESSAGES_PER_DAY:
-        await update.message.reply_text("⚠️ Лимит сообщений на сегодня исчерпан.")
-        return
+    if user_data:
+        if user_data["date"] == today and user_data["count"] >= MAX_MESSAGES_PER_DAY:
+            await update.message.reply_text("⚠️ Лимит сообщений на сегодня исчерпан.")
+            return
 
     WAITING_USERS.add(user_id)
+
     await update.message.reply_text(
         "✍️ Напиши сообщение или отправь медиа",
         reply_markup=ReplyKeyboardRemove()
