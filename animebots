@@ -2,24 +2,22 @@ import logging
 from datetime import datetime
 from telegram import (
     Update,
-    ReplyKeyboardMarkup,
-    ReplyKeyboardRemove,
     InlineKeyboardButton,
     InlineKeyboardMarkup
 )
 from telegram.ext import (
     ApplicationBuilder,
     ContextTypes,
-    CommandHandler,
     MessageHandler,
+    CommandHandler,
     CallbackQueryHandler,
     filters
 )
 
 # ================= НАСТРОЙКИ =================
 
-BOT_TOKEN = "8244861416:AAEo04Qg9z3DR0iu5hMexsuZAIS3wHTeAeM"
-CHANNEL_ID = "-1002273765519"  # ID канала
+BOT_TOKEN = "ВСТАВЬ_НОВЫЙ_ТОКЕН"
+CHANNEL_ID = -1002273765519  # ID канала
 
 FULL_ADMINS = [916852840, 1157418027]
 DEFAULT_ADMINS = [916852840, 7729231060]
@@ -28,65 +26,11 @@ DEFAULT_ADMINS = [916852840, 7729231060]
 
 logging.basicConfig(level=logging.INFO)
 
-# ================= ХРАНИЛИЩЕ =================
+# ================= ХРАНИЛИЩА =================
 
-WAITING_USERS = set()
 BANNED_USERS = set()
 USER_LIMIT = {}
-
 MESSAGE_STORAGE = {}
-
-# ================= КНОПКИ =================
-
-main_keyboard = ReplyKeyboardMarkup(
-    [["✍️ Написать сообщение"], ["ℹ️ О боте"]],
-    resize_keyboard=True
-)
-
-def admin_keyboard(msg_id):
-    keyboard = [
-        [
-            InlineKeyboardButton("✅ ОПУБЛИКОВАТЬ", callback_data=f"publish_{msg_id}"),
-            InlineKeyboardButton("🔴 ИГНОРИРОВАТЬ", callback_data=f"ignore_{msg_id}")
-        ],
-        [
-            InlineKeyboardButton("🚫 ЗАБЛОКИРОВАТЬ", callback_data=f"ban_{msg_id}")
-        ]
-    ]
-    return InlineKeyboardMarkup(keyboard)
-
-# ================= /start =================
-
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id in BANNED_USERS:
-        await update.message.reply_text("🚫 Вы заблокированы.")
-        return
-
-    await update.message.reply_text(
-        "Привет! Ты можешь отправить анонимное сообщение 👇",
-        reply_markup=main_keyboard
-    )
-
-# ================= КНОПКИ =================
-
-async def write_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-
-    if user_id in BANNED_USERS:
-        return
-
-    WAITING_USERS.add(user_id)
-
-    await update.message.reply_text(
-        "✍️ Напиши сообщение или отправь медиа",
-        reply_markup=ReplyKeyboardRemove()
-    )
-
-async def about_bot(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(
-        "🤖 Анонимный бот\nОтправляй сообщения анонимно.",
-        reply_markup=main_keyboard
-    )
 
 # ================= ЛИМИТ =================
 
@@ -105,6 +49,30 @@ def check_limit(user_id):
     USER_LIMIT[user_id]["count"] += 1
     return True
 
+# ================= КНОПКИ =================
+
+def admin_keyboard(msg_id):
+    return InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("✅ ОПУБЛИКОВАТЬ", callback_data=f"publish_{msg_id}"),
+            InlineKeyboardButton("🔴 ИГНОРИРОВАТЬ", callback_data=f"ignore_{msg_id}")
+        ],
+        [
+            InlineKeyboardButton("🚫 ЗАБЛОКИРОВАТЬ", callback_data=f"ban_{msg_id}")
+        ]
+    ])
+
+# ================= /start =================
+
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id in BANNED_USERS:
+        await update.message.reply_text("🚫 Вы заблокированы.")
+        return
+
+    await update.message.reply_text(
+        "Привет! Просто отправь сообщение или медиа — оно будет анонимным."
+    )
+
 # ================= ОБРАБОТКА СООБЩЕНИЙ =================
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -114,21 +82,15 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if user.id in BANNED_USERS:
         return
 
-    if user.id not in WAITING_USERS:
-        return
-
     if not check_limit(user.id):
-        await msg.reply_text("⚠️ Лимит 5 сообщений в день исчерпан.", reply_markup=main_keyboard)
-        WAITING_USERS.discard(user.id)
+        await msg.reply_text("⚠️ Лимит 5 сообщений в день исчерпан.")
         return
-
-    WAITING_USERS.discard(user.id)
 
     name = user.first_name or "Без имени"
     username = f"@{user.username}" if user.username else "нет username"
     uid = user.id
 
-    text = msg.text if msg.text else ""
+    text = msg.text or msg.caption or ""
 
     media = None
     media_type = None
@@ -166,6 +128,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"🔗 {username}\n"
             f"🆔 {uid}\n\n"
         )
+
         if text:
             caption += f"💬 {text}"
 
@@ -190,7 +153,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 reply_markup=admin_keyboard(msg_id)
             )
 
-    await msg.reply_text("✅ Сообщение отправлено", reply_markup=main_keyboard)
+    await msg.reply_text("✅ Сообщение отправлено анонимно")
 
 # ================= ОТПРАВКА МЕДИА =================
 
@@ -256,8 +219,6 @@ def main():
     app = ApplicationBuilder().token(BOT_TOKEN).build()
 
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(MessageHandler(filters.Regex("^✍️ Написать сообщение$"), write_message))
-    app.add_handler(MessageHandler(filters.Regex("^ℹ️ О боте$"), about_bot))
     app.add_handler(MessageHandler(filters.ALL & ~filters.COMMAND, handle_message))
     app.add_handler(CallbackQueryHandler(button_handler))
 
