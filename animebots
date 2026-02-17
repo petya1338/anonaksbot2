@@ -1,5 +1,4 @@
 import logging
-from datetime import datetime
 from telegram import (
     Update,
     InlineKeyboardButton,
@@ -16,38 +15,21 @@ from telegram.ext import (
 
 # ================= НАСТРОЙКИ =================
 
-BOT_TOKEN = "8244861416:AAEo04Qg9z3DR0iu5hMexsuZAIS3wHTeAeM"
-CHANNEL_ID = -1002273765519  # ID канала
+BOT_TOKEN = "ВСТАВЬ_СВОЙ_ТОКЕН"
+CHANNEL_ID = -100XXXXXXXXXX  # ВСТАВЬ ID КАНАЛА
 
-FULL_ADMINS = [1157418027]
-DEFAULT_ADMINS = [916852840, 7729231060]
+FULL_ADMINS = [111111111]      # ID фулл админа
+DEFAULT_ADMINS = [222222222]   # ID дефолт админа
 
 # ================= ЛОГИ =================
 
 logging.basicConfig(level=logging.INFO)
 
-# ================= ХРАНИЛИЩА =================
+# ================= ХРАНИЛИЩЕ =================
 
 BANNED_USERS = set()
-USER_LIMIT = {}
 MESSAGE_STORAGE = {}
-
-# ================= ЛИМИТ =================
-
-def check_limit(user_id):
-    today = datetime.now().date()
-
-    if user_id not in USER_LIMIT:
-        USER_LIMIT[user_id] = {"date": today, "count": 0}
-
-    if USER_LIMIT[user_id]["date"] != today:
-        USER_LIMIT[user_id] = {"date": today, "count": 0}
-
-    if USER_LIMIT[user_id]["count"] >= 5:
-        return False
-
-    USER_LIMIT[user_id]["count"] += 1
-    return True
+MESSAGE_COUNTER = 0
 
 # ================= КНОПКИ =================
 
@@ -65,25 +47,34 @@ def admin_keyboard(msg_id):
 # ================= /start =================
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id in BANNED_USERS:
-        await update.message.reply_text("🚫 Вы заблокированы.")
-        return
-
     await update.message.reply_text(
-        "Привет! Просто отправь сообщение или медиа — оно будет анонимным. ОТ СЕВЫ ИЗ 11Б"
+        "Просто отправь сообщение или медиа — оно будет анонимным."
     )
+
+# ================= ОТПРАВКА МЕДИА =================
+
+async def send_media(context, chat_id, media, media_type, caption, markup=None):
+    if media_type == "photo":
+        await context.bot.send_photo(chat_id, media, caption=caption, reply_markup=markup)
+    elif media_type == "video":
+        await context.bot.send_video(chat_id, media, caption=caption, reply_markup=markup)
+    elif media_type == "voice":
+        await context.bot.send_voice(chat_id, media, caption=caption, reply_markup=markup)
+    elif media_type == "audio":
+        await context.bot.send_audio(chat_id, media, caption=caption, reply_markup=markup)
+    elif media_type == "video_note":
+        await context.bot.send_video_note(chat_id, media)
+        await context.bot.send_message(chat_id, caption, reply_markup=markup)
 
 # ================= ОБРАБОТКА СООБЩЕНИЙ =================
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    global MESSAGE_COUNTER
+
     user = update.effective_user
     msg = update.message
 
     if user.id in BANNED_USERS:
-        return
-
-    if not check_limit(user.id):
-        await msg.reply_text("⚠️ Лимит 5 сообщений в день исчерпан.")
         return
 
     name = user.first_name or "Без имени"
@@ -111,7 +102,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         media = msg.audio.file_id
         media_type = "audio"
 
-    msg_id = len(MESSAGE_STORAGE) + 1
+    MESSAGE_COUNTER += 1
+    msg_id = MESSAGE_COUNTER
 
     MESSAGE_STORAGE[msg_id] = {
         "text": text,
@@ -122,55 +114,55 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # ===== FULL ADMINS =====
     for admin in FULL_ADMINS:
-        caption = (
-            "Пришло сообщение от:\n"
-            f"👤 {name}\n"
-            f"🔗 {username}\n"
-            f"🆔 {uid}\n\n"
-        )
+        try:
+            caption = (
+                "Пришло сообщение от:\n"
+                f"👤 {name}\n"
+                f"🔗 {username}\n"
+                f"🆔 {uid}\n\n"
+            )
 
-        if text:
-            caption += f"💬 {text}"
+            if text:
+                caption += f"💬 {text}"
 
-        if media:
-            await send_media(context, admin, media, media_type, caption)
-        else:
-            await context.bot.send_message(admin, caption)
+            if media:
+                await send_media(context, admin, media, media_type, caption)
+            else:
+                await context.bot.send_message(admin, caption)
+
+        except Exception as e:
+            print("Ошибка FULL:", e)
 
     # ===== DEFAULT ADMINS =====
     for admin in DEFAULT_ADMINS:
-        caption = "У тебя новое анонимное сообщение!\n\n"
-        if text:
-            caption += f"{text}\n\n"
-        caption += "@anonymousaskkbot"
+        try:
+            caption = "У тебя новое анонимное сообщение!\n\n"
 
-        if media:
-            await send_media(context, admin, media, media_type, caption, msg_id)
-        else:
-            await context.bot.send_message(
-                admin,
-                caption,
-                reply_markup=admin_keyboard(msg_id)
-            )
+            if text:
+                caption += f"{text}\n\n"
+
+            caption += "@anonymousaskkbot"
+
+            if media:
+                await send_media(
+                    context,
+                    admin,
+                    media,
+                    media_type,
+                    caption,
+                    admin_keyboard(msg_id)
+                )
+            else:
+                await context.bot.send_message(
+                    admin,
+                    caption,
+                    reply_markup=admin_keyboard(msg_id)
+                )
+
+        except Exception as e:
+            print("Ошибка DEFAULT:", e)
 
     await msg.reply_text("✅ Сообщение отправлено анонимно")
-
-# ================= ОТПРАВКА МЕДИА =================
-
-async def send_media(context, chat_id, media, media_type, caption, msg_id=None):
-    markup = admin_keyboard(msg_id) if msg_id else None
-
-    if media_type == "photo":
-        await context.bot.send_photo(chat_id, media, caption=caption, reply_markup=markup)
-    elif media_type == "video":
-        await context.bot.send_video(chat_id, media, caption=caption, reply_markup=markup)
-    elif media_type == "voice":
-        await context.bot.send_voice(chat_id, media, caption=caption, reply_markup=markup)
-    elif media_type == "audio":
-        await context.bot.send_audio(chat_id, media, caption=caption, reply_markup=markup)
-    elif media_type == "video_note":
-        await context.bot.send_video_note(chat_id, media)
-        await context.bot.send_message(chat_id, caption, reply_markup=markup)
 
 # ================= INLINE КНОПКИ =================
 
