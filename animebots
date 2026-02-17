@@ -19,7 +19,7 @@ from telegram.ext import (
 BOT_TOKEN = "8244861416:AAEo04Qg9z3DR0iu5hMexsuZAIS3wHTeAeM"
 CHANNEL_ID = -1002273765519  # ID канала
 
-FULL_ADMINS = [1157418027]
+FULL_ADMINS = [916852840, 1157418027]
 DEFAULT_ADMINS = [916852840, 7729231060]
 
 # ================= ЛОГИ =================
