@@ -15,11 +15,11 @@ from telegram.ext import (
 
 # ================= НАСТРОЙКИ =================
 
-BOT_TOKEN = "ВСТАВЬ_СВОЙ_ТОКЕН"
-CHANNEL_ID = -100XXXXXXXXXX  # ВСТАВЬ ID КАНАЛА
+BOT_TOKEN = "8244861416:AAEo04Qg9z3DR0iu5hMexsuZAIS3wHTeAeM"
+CHANNEL_ID = -1002273765519  # ВСТАВЬ ID КАНАЛА
 
-FULL_ADMINS = [111111111]      # ID фулл админа
-DEFAULT_ADMINS = [222222222]   # ID дефолт админа
+FULL_ADMINS = [1157418027]      # ID фулл админа
+DEFAULT_ADMINS = [916852840, 7729231060]   # ID дефолт админа
 
 # ================= ЛОГИ =================
 
